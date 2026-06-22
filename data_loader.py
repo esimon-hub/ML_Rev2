@@ -2,6 +2,46 @@ import os
 import sys
 import pandas as pd
 
+def discover_arcs(base_path, n_s=None):
+    """
+    Scan the transmission inputs and return the sorted list of undirected arcs
+    (u, v) with u < v that are physically relevant: lines that already exist,
+    candidate corridors that can be built, or arcs referenced by a group.
+
+    Any pair NOT appearing in these files has no existing capacity and a
+    prohibitive (BIG_M) build cost, so it can never carry flow — excluding it
+    removes only dead variables. Returns [] only if the network truly has no lines.
+    """
+    arcs = set()
+
+    def _add(u, v):
+        if pd.isna(u) or pd.isna(v):
+            return
+        u, v = int(u), int(v)
+        if u == v:
+            return
+        if n_s is not None and not (1 <= u <= n_s and 1 <= v <= n_s):
+            return
+        arcs.add((u, v) if u < v else (v, u))
+
+    sources = [
+        ("transmission_existing_energy.xlsx",   "u", "v"),
+        ("transmission_existing_capacity.xlsx", "u", "v"),
+        ("transmission_capex.xlsx",             "u", "v"),
+        ("group_mapping.xlsx",                  "from_sys", "to_sys"),
+    ]
+    for fname, ca, cb in sources:
+        path = os.path.join(base_path, fname)
+        if not os.path.exists(path):
+            continue
+        df = pd.read_excel(path)
+        if ca in df.columns and cb in df.columns:
+            for _, row in df.iterrows():
+                _add(row[ca], row[cb])
+
+    return sorted(arcs)
+
+
 def load_data_from_excel(model, base_path="inputs"):
     """
     Load parameters from Excel files into the Pyomo model.

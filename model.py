@@ -9,7 +9,8 @@ def create_model_structure(
     N_y=5,
     N_c=10,
     N_ph=0,
-    BIG_M=1e6
+    BIG_M=1e6,
+    arcs=None
 ):
     """
     Creates the Sets, Parameters, and Variables for a multistage capacity-expansion model.
@@ -29,7 +30,19 @@ def create_model_structure(
     # 1. SETS / INDICES
     # =========================
     model.s  = RangeSet(1, N_s)
-    model.arcs = Set(initialize=[(u, v) for u in model.s for v in model.s if u < v])
+
+    if arcs is None:
+        # Backward-compatible default: full clique of undirected arcs.
+        arc_init = [(u, v) for u in model.s for v in model.s if u < v]
+    else:
+        norm = set()
+        for (u, v) in arcs:
+            u, v = int(u), int(v)
+            if u == v or not (1 <= u <= N_s and 1 <= v <= N_s):
+                continue
+            norm.add((u, v) if u < v else (v, u))
+        arc_init = sorted(norm)
+    model.arcs = Set(initialize=arc_init, dimen=2)
 
     model.k  = RangeSet(1, N_k)
     model.p  = RangeSet(1, N_p)

@@ -22,7 +22,7 @@ import pandas as pd
 from pyomo.environ import value
 from pyomo.opt import SolverFactory
 from model import create_model_structure, add_constraints
-from data_loader import load_data_from_excel
+from data_loader import load_data_from_excel, discover_arcs
 from reports import save_reports
 
 # --- CONFIGURATION ---
@@ -70,9 +70,18 @@ def main():
     # These are exogenous planner decisions (fixed capacity, fixed online year), not
     # optimization variables. Set to match the rows/ids in planned_hydro.xlsx.
     N_PH = 0
+    # Number of subsystems (zones).
+    N_S = 14
+    # Restrict the transmission graph to arcs that actually exist or can be built,
+    # instead of the full N_s*(N_s-1)/2 clique. This cuts the largest variable and
+    # constraint blocks (f_e, f_p, tr_*) without changing the optimum, since pruned
+    # arcs have no existing capacity and a prohibitive build cost. Falls back to the
+    # full clique if arcs is None.
+    arcs = discover_arcs(INPUT_DIR, n_s=N_S)
+    print(f"   Transmission arcs in scope: {len(arcs)} of {N_S * (N_S - 1) // 2} possible")
     model = create_model_structure(
-        N_s=14, N_k=12 * N_Y, N_p=4, N_hp=0, N_te=42, N_tp=10, N_re=28, N_rp=21, N_ue=28, N_up=20, N_bt=28, N_ag=0,
-        N_y=N_Y, N_c=N_C, N_ph=N_PH
+        N_s=N_S, N_k=12 * N_Y, N_p=4, N_hp=0, N_te=42, N_tp=10, N_re=28, N_rp=21, N_ue=28, N_up=20, N_bt=28, N_ag=0,
+        N_y=N_Y, N_c=N_C, N_ph=N_PH, arcs=arcs
     )
 
     # 3. Load Data (Populate Sets and Parameters)
